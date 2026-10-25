@@ -1,0 +1,16 @@
+version: 0.1.0
+name: flux-static-github-ops
+displayName: Headlamp Plugin for Flux Static GitHub-Ops
+createdAt: '2026-10-25T22:32:00Z'
+description: Flux-style resource and controller health from public cloud snapshots, with GitHub evidence and fail-closed freshness.
+license: Apache-2.0
+homeURL: https://github.com/re8ch/headlamp-flux-static-github-ops
+keywords: [headlamp, flux, gitops, github, static, observability]
+links:
+  - name: Source
+    url: https://github.com/re8ch/headlamp-flux-static-github-ops
+annotations:
+  headlamp/plugin/archive-url: https://github.com/re8ch/headlamp-flux-static-github-ops/releases/download/v0.1.0/re8ch-headlamp-flux-static-github-ops-0.1.0.tar.gz
+  headlamp/plugin/archive-checksum: SHA256:d54f5c8034b121443b1bc48eb9b7509963f8857594a57f31cf35fb32c60eef4e
+  headlamp/plugin/version-compat: '>=0.45.0'
+  headlamp/plugin/distro-compat: 'in-cluster,desktop'
