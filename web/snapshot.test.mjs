@@ -1,18 +1,10 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {publicSnapshot,readSnapshot,autoRefresh} from './snapshot.mjs';
-import {TTL,evidenceItems} from './evidence.mjs';
-const sha='a'.repeat(40),observedAt=new Date().toISOString();
-const index={schema:1,headSha:sha,batch:'1-1',observedAt,domains:[{id:'main',checkRunId:2,count:1}]};
-const check=(id,name,data)=>({id,name,head_sha:sha,status:'completed',conclusion:'success',app:{id:5426288},output:{text:JSON.stringify(data)}});
-const fixture={schema:1,repository:'re8ch/service-backend',sha,indexCheck:check(1,'flux-runtime',index),domainChecks:[check(2,'flux-runtime/main',{schema:1,headSha:sha,batch:'1-1',observedAt,domain:'main',items:[{kind:'HelmRelease',name:'app',namespace:'flux-system',domain:'main',state:'success',spec:{password:'PRIVATE'}}]})]};
-test('public projection strips private fields, validates provenance, expires original time',()=>{
- const result=publicSnapshot(fixture);assert.ok(!JSON.stringify(result).includes('PRIVATE'));
- const parsed=readSnapshot(result);assert.equal(evidenceItems(parsed.runtime.index,parsed.runtime.domains,Date.parse(observedAt)+TTL)[0].state,'unknown');
- assert.throws(()=>publicSnapshot({...fixture,domainChecks:[]}));
- assert.throws(()=>publicSnapshot({...fixture,indexCheck:{...fixture.indexCheck,app:{id:1}}}));
-});
-test('automatic reads repeat after completion and stop cleanly',async()=>{
- let calls=0,scheduled,cleared=false;
- const stop=autoRefresh(async()=>{calls++;},{setTimer:fn=>{scheduled=fn;return 1;},clearTimer:()=>{cleared=true;}});
- await new Promise(setImmediate);assert.equal(calls,1);await scheduled();assert.equal(calls,2);stop();assert.equal(cleared,true);
-});
+import {publicSnapshot,readSnapshot,autoRefresh,metrics,DOMAIN_IDS,TTL} from './snapshot.mjs';
+export function fixture(now=Date.now()) {const observedAt=new Date(now).toISOString();return {schema:2,repository:'re8ch/service-backend',sha:'a'.repeat(40),batch:'1-1',observedAt,complete:true,domains:DOMAIN_IDS.map(id=>({id,sync:{synced:2,drifted:0,failed:0,unknown:0},health:{healthy:3,unhealthy:1,unknown:0},observation:{status:'current',observedAt},operations:{status:'succeeded',observedAt}}))};}
+test('public boundary strips topology at every level and fixes domain identities',()=>{const s=fixture();s.secret='PRIVATE';s.domains[0].resources=[{namespace:'PRIVATE'}];s.domains[0].sync.password='PRIVATE';s.domains[0].operations.url='PRIVATE';assert.ok(!JSON.stringify(publicSnapshot(s)).includes('PRIVATE'));assert.throws(()=>publicSnapshot({...s,domains:s.domains.slice(1)}));assert.throws(()=>publicSnapshot({...s,domains:s.domains.map(d=>({...d,id:'private-host'}))}));assert.throws(()=>publicSnapshot({...s,schema:1}));});
+test('unhealthy preexisting workloads never turn synchronized releases into failures',()=>{const s=readSnapshot(fixture());assert.equal(s.domains[0].syncState,'synced');assert.equal(s.domains[0].healthState,'unhealthy');});
+test('exact observation TTL, future timestamps and per-domain collection failure become Unknown',()=>{const now=Date.now(),s=fixture(now);for(const time of [now+TTL,now-1]){const r=readSnapshot(s,time);assert.equal(r.observation,'unknown');assert.equal(r.domains[0].syncState,'unknown');assert.equal(r.domains[0].health,null);}s.domains[0].observation.status='unavailable';const r=readSnapshot(s,now);assert.equal(r.domains[0].healthState,'unknown');assert.equal(r.domains[1].healthState,'unhealthy');s.domains[1].observation.observedAt=new Date(now-TTL).toISOString();assert.equal(readSnapshot(s,now).domains[1].syncState,'unknown');});
+test('failed operation remains separate and source unknown synchronization does not mask live health',()=>{const s=fixture();s.domains[0].operations.status='failed';s.domains[0].sync={synced:0,drifted:0,failed:0,unknown:2};const r=readSnapshot(s);assert.equal(r.domains[0].operations.status,'failed');assert.equal(r.domains[0].syncState,'unknown');assert.equal(r.domains[0].healthState,'unhealthy');});
+test('unavailable whole batch and invalid counts fail closed',()=>{const s=fixture();assert.equal(readSnapshot({...s,complete:false,domains:[]}).domains[0].syncState,'unknown');assert.throws(()=>publicSnapshot({...s,complete:false}));for(const value of [-1,NaN,1.5,'1',1000001]){s.domains[0].sync.synced=value;assert.throws(()=>publicSnapshot(s));}});
+test('metrics are aggregate-only, expired observations have Unknown status and no fabricated counts',()=>{const now=Date.now(),s=fixture(now);const text=metrics(s,now);assert.match(text,/re8ch_gitops_sync_status\{domain="main",sync="synced"\} 1/);assert.match(text,/re8ch_gitops_health_status\{domain="main",health="unhealthy"\} 1/);assert.ok(!text.includes('namespace'));const stale=metrics(s,now+TTL);assert.match(stale,/sync="unknown"\} 1/);assert.match(stale,/sync_releases\{domain="main",sync="synced"\} NaN/);assert.match(metrics({schema:1}),/observation_current\{domain="main"\} 0/);});
+test('automatic reads repeat only after completion and stop cleanly',async()=>{let calls=0,scheduled,cleared=false;const stop=autoRefresh(async()=>{calls++;},{setTimer:fn=>{scheduled=fn;return 1;},clearTimer:()=>{cleared=true;}});await new Promise(setImmediate);assert.equal(calls,1);await scheduled();assert.equal(calls,2);stop();assert.equal(cleared,true);});

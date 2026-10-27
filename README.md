@@ -1,53 +1,42 @@
-# Headlamp Plugin for Flux Static GitHub-Ops
+# Cloud GitOps status
 
-An Apache-2.0 Headlamp plugin and standalone Flux-style overview. Browsers read a
-public cloud snapshot only; they never call Kubernetes or the GitHub API. Includes
-Kustomizations, Helm Releases, all Flux Sources, notification resources and Controllers,
-with domain filters, revisions, replica counts and separate GitHub release evidence.
+An Apache-2.0 Headlamp plugin and standalone cloud status page. It displays release
+synchronization, workload health, observation freshness, and the latest domain
+cloud operation independently. Public responses contain only six-domain aggregates.
+Browsers never call Kubernetes or GitHub and do not consume Flux CRs or a local
+metrics projection.
 
-- Refresh automatically every 15 seconds; expire health 15 minutes after observation.
-- Fetch failures, future dates, incomplete batches and expired data are Unknown.
-- Retrying Ready=False failures remain failures. Suspended resources are not Ready.
-- No reconciliation controller, database, image build or promotion stage.
+- Refresh every 15 seconds; observations expire after 15 minutes from collection.
+- Missing, failed, incomplete, future or expired observations are Unknown.
+- Existing unhealthy services remain visible without becoming sync failures.
+- `/metrics` supplies aggregate Prometheus gauges with explicit Unknown states.
+- No local controller, new credential store, image build or database.
 
-## Install
+The public URL remains https://flux-status.re8ch.com/ for compatibility. The
+Headlamp route remains `/flux-static-github-ops`, labeled Cloud GitOps. Install
+using the Headlamp plugin manager and the packaged GitHub build artifact.
 
-Download the plugin archive from GitHub Releases and install using Headlamp's
-plugin manager. Artifact Hub metadata is included; catalog registration is a separate
-publisher operation. The plugin URL can be changed in its settings form. The default
-public demonstration is https://flux-status.re8ch.com/ .
+## Validate
 
-## Build and validate
+`npm ci && npm ci --prefix worker && npm test && npm run build && npm run package`
 
-`npm ci && npm run build && npm run package`
+Only `web/index.html`, `style.css`, `app.mjs`, and `snapshot.mjs` belong in
+`web-public/`. Legacy model/evidence utilities and tests are not deployed assets.
 
-`npm ci --prefix worker && npm test`
+## Publish and deploy
 
-The plugin uses Headlamp's official packaging tool. A version builds once and its
-archive/checksum are reused for installation. `web/` is the standalone static viewer;
-copy only index.html, style.css, app.mjs, model.mjs, evidence.mjs and snapshot.mjs to
-`web-public/` before deploying the Worker. Tests and collector code are not web assets.
+[Snapshot v2](docs/snapshot-v2.md) specifies the collector interface. The Worker
+uses the existing R2 bucket and exact service-backend GitHub OIDC publisher
+identity, with conditional writes for ordering/concurrency. The deployment
+workflow in `re8ch/re8ch` uses its existing Cloudflare credential and a reviewed
+fixed source commit; credentials are not copied into this public repository.
 
-## Public cloud adapter
-
-`worker/` uses an R2 bucket binding for latest.json, exposed read-only with no-store.
-POST /api/snapshot accepts GitHub Actions OIDC signed by GitHub, bound to exact repo
-IDs, protected main, environment, workflow, audience, SHA and run batch. Conditional
-writes reject stale or concurrent overwrites. No long-lived upload credential is
-created. Existing Executor App Checks remain the publication evidence.
-
-Deployment is owned by re8ch/re8ch's reviewed workflow using its existing Cloudflare
-credential. The viewer schema preserves existing App provenance. Other installations
-must configure their own trusted App ID and publisher identity; do not grant broad
-GitHub permissions or expose tokens in a browser.
-
-This is a public projection of runtime observations. Collection still occurs at the
-cluster and its freshness is bounded by the collector. GitHub schedules do not provide
-a real-time SLA. Static delivery does not turn Flux reconciliation into a static process.
+Schema 1 resource-detail snapshots fail closed after deployment, including old
+R2 data. The page becomes available when the approved collector publishes schema
+2. Deploying this viewer alone does not retire cluster components or establish
+current runtime health. GitHub schedules provide no real-time SLA.
 
 ## Attribution
 
-Extracted from re8ch/service-backend's cloud release view. Presentation follows the
-Headlamp Flux plugin overview; this is an independent RE8CH plugin, not an official
-Headlamp or Flux project. Resource specs, Secret values and raw condition messages
-are excluded from publication.
+Extracted from re8ch/service-backend's cloud release view. Independently maintained
+by RE8CH; not an official Headlamp or Flux project.
