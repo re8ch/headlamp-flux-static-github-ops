@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Public cloud GitOps aggregate snapshot v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "repository",
+    "sha",
+    "batch",
+    "observedAt",
+    "complete",
+    "domains"
+  ],
+  "properties": {
+    "schema": {
+      "const": 2
+    },
+    "repository": {
+      "const": "re8ch/service-backend"
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "batch": {
+      "type": "string",
+      "pattern": "^[0-9]+-[0-9]+$"
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sync",
+          "health",
+          "observation",
+          "operations"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "main",
+              "networking",
+              "identity-access",
+              "agent-runtime",
+              "observability-metering",
+              "delivery-products"
+            ]
+          },
+          "sync": {
+            "type": "object",
+            "required": [
+              "synced",
+              "drifted",
+              "failed",
+              "unknown"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "synced": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "drifted": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            }
+          },
+          "health": {
+            "type": "object",
+            "required": [
+              "healthy",
+              "unhealthy",
+              "unknown"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "healthy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "unhealthy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              }
+            }
+          },
+          "observation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "observedAt"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "current",
+                  "unavailable"
+                ]
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "Z$"
+              }
+            }
+          },
+          "operations": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "observedAt"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "succeeded",
+                  "failed",
+                  "running",
+                  "unknown"
+                ]
+              },
+              "observedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "Z$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "if": {
+              "properties": {
+                "status": {
+                  "not": {
+                    "const": "unknown"
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "observedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "Z$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "properties": {
+      "complete": {
+        "const": true
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "domains": {
+        "minItems": 6,
+        "maxItems": 6,
+        "allOf": [
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "main"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "networking"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "identity-access"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "agent-runtime"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "observability-metering"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "properties": {
+                "id": {
+                  "const": "delivery-products"
+                }
+              }
+            },
+            "minContains": 1,
+            "maxContains": 1
+          }
+        ]
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "domains": {
+        "maxItems": 0
+      }
+    }
+  }
+}
